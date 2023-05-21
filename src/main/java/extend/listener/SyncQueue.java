@@ -255,8 +255,8 @@ public class SyncQueue extends AbstractOwnableSynchronizer {
         Node node = addWaiter(Node.EXCLUSIVE);
         try {
             for (; ; ) {
-                if (shouldParkAfterFailedAcquire(node.prev, node) && !waitingForWakeup(waitTime, node))
-                    return true;
+                if (shouldParkAfterFailedAcquire(node.prev, node))
+                    return waitingForWakeup(waitTime, node);
             }
         } catch (Exception t) {
             cancelAcquire(node);
