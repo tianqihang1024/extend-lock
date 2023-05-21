@@ -1,0 +1,16 @@
+# 应用服务 WEB 访问端口
+server:
+  port: 8080
+
+spring:
+  redis:
+    client-name: tianqihang
+    password: Tian962454294
+    host: 192.168.200.130
+    port: 6379
+    lettuce:
+      pool:
+        max-active: 8
+        max-wait: 1
+        max-idle: 8
+        min-idle: 0
