@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * @author 田奇杭
- * @Description
+ * @Description 普通分布式锁
  * @Date 2023/5/10 21:11
  */
 @Slf4j
@@ -48,15 +48,20 @@ public class OrdinaryDistributedLock extends AbstractDistributedLock {
      * key 锁名称，value 同步队列
      */
     private static final Map<String, SyncQueue> LOCK_MAP = new ConcurrentHashMap<>();
+    /**
+     * redis 操作对象
+     */
     @Resource
     private RedisTemplate<String, String> redisTemplate;
 
     /**
+     * 尝试获取锁
+     *
      * @param key       锁名称
-     * @param waitTime
-     * @param leaseTime
-     * @param unit
-     * @return
+     * @param waitTime  等待时间
+     * @param leaseTime 锁持续时间
+     * @param unit      时间单位
+     * @return true:抢占成功 false:抢占失败
      */
     @Override
     boolean tryLock(String key, long waitTime, long leaseTime, TimeUnit unit) {

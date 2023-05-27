@@ -10,6 +10,9 @@ import java.util.concurrent.TimeUnit;
  */
 public abstract class AbstractDistributedLock {
 
+    /**
+     * 锁名称基本格式
+     */
     protected String lockNameFormat = "%s:{%s}";
 
     /**
@@ -26,8 +29,11 @@ public abstract class AbstractDistributedLock {
     /**
      * 尝试获取锁
      *
-     * @param key 锁名称
-     * @return true：尝试抢占成功 false：尝试抢占失败
+     * @param key       锁名称
+     * @param waitTime  等待时间
+     * @param leaseTime 锁持续时间
+     * @param unit      时间单位
+     * @return true:抢占成功 false:抢占失败
      */
     abstract boolean tryLock(String key, long waitTime, long leaseTime, TimeUnit unit);
 

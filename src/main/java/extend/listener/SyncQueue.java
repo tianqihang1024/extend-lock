@@ -9,7 +9,7 @@ import java.util.concurrent.locks.LockSupport;
 
 /**
  * @author 田奇杭
- * @Description
+ * @Description 同步队列（数据模型参考AQS）
  * @Date 2023/5/15 22:08
  */
 public class SyncQueue extends AbstractOwnableSynchronizer {
