@@ -1,6 +1,7 @@
 package extend.lock;
 
 
+import extend.listener.PublishSubscribe;
 import extend.listener.SyncQueue;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -74,7 +75,7 @@ public class OrdinaryDistributedLock extends AbstractDistributedLock {
         String lockName = assembleLockName(key);
 
         // 获取分布式锁对应的JVM本地锁对象
-        SyncQueue syncQueue = LOCK_MAP.computeIfAbsent(lockName, k -> new SyncQueue());
+        SyncQueue syncQueue = PublishSubscribe.getSyncQueueByLockName(lockName);
 
         // 获取JVM本地锁
         boolean flag = syncQueue.tryAcquire();
