@@ -23,17 +23,6 @@ public abstract class AbstractDistributedLock {
     protected static final Long THREAD_FLAG = System.currentTimeMillis();
 
     /**
-     * 获取监听通道名称
-     *
-     * @param name 锁名称
-     * @return 监听通道名称
-     */
-    protected String getChannelName(String name) {
-        String prefix = "redis_lock__channel";
-        return name.contains("{") ? prefix + ":" + name : prefix + ":{" + name + "}";
-    }
-
-    /**
      * 尝试获取锁
      *
      * @param key       锁名称
