@@ -135,7 +135,7 @@ public class OrdinaryDistributedLock extends AbstractDistributedLock {
      * @return null:成功 !null:失败
      */
     private Long tryAcquire(String key, long current, long threadId) {
-        DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>(OrdinaryDistributedLock.ORDINARY_LOCK_SCRIPT);
         try {
             return redisTemplate.execute(script, Collections.singletonList(key), current, threadId);
         } catch (Exception e) {
