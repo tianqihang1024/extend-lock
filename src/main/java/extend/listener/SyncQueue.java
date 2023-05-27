@@ -1,5 +1,7 @@
 package extend.listener;
 
+import jdk.internal.vm.annotation.ReservedStackAccess;
+
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.concurrent.locks.AbstractOwnableSynchronizer;
@@ -169,53 +171,26 @@ public class SyncQueue extends AbstractOwnableSynchronizer {
     private transient volatile Node tail;
 
     /**
-     * The synchronization state.
-     */
-    private volatile int state;
-
-    /**
-     * Returns the current value of synchronization state.
-     * This operation has memory semantics of a {@code volatile} read.
+     * 获取本地JVM锁，head 节点直接进入等待状态，
+     * 非 head 节点初始化 fifo 队列后进入等待状态
      *
-     * @return current state value
+     * @param waitTime 等待时间
+     * @return true:分布式锁已被释放，尝试抢占 false:等待超时
      */
-    protected final int getState() {
-        return state;
-    }
-
-    /**
-     * Sets the value of synchronization state.
-     * This operation has memory semantics of a {@code volatile} write.
-     *
-     * @param newState the new state value
-     */
-    protected final void setState(int newState) {
-        state = newState;
-    }
-
-    /**
-     * Atomically sets synchronization state to the given updated
-     * value if the current state value equals the expected value.
-     * This operation has memory semantics of a {@code volatile} read
-     * and write.
-     *
-     * @param expect the expected value
-     * @param update the new value
-     * @return {@code true} if successful. False return indicates that the actual
-     * value was not equal to the expected value.
-     */
-    protected final boolean compareAndSetState(int expect, int update) {
-        return STATE.compareAndSet(this, expect, update);
-    }
-
-    public final boolean acquire(int arg, long waitTime) {
-        if (tryAcquire(arg))
+    public final boolean acquire(long waitTime) {
+        if (tryAcquire())
             return waitingForWakeup(waitTime, null);
         else
             return joinTheTeam(waitTime);
     }
 
-
+    /**
+     * 等待唤醒
+     *
+     * @param waitTime 等待时间
+     * @param node     当前线程所代表的节点
+     * @return true:被唤醒 false:正常苏醒
+     */
     private boolean waitingForWakeup(long waitTime, Node node) {
         long a = waitTime - System.currentTimeMillis();
         final Thread current = Thread.currentThread();
@@ -226,10 +201,9 @@ public class SyncQueue extends AbstractOwnableSynchronizer {
             if (getExclusiveOwnerThread() == current) {
                 // fifo 队列已初始化
                 if (hasQueuedPredecessors()) {
-                    release(1);
+                    release();
                 } else {
                     // fifo 对列未初始化
-                    setState(1);
                     setExclusiveOwnerThread(null);
                 }
             } else {
@@ -241,16 +215,28 @@ public class SyncQueue extends AbstractOwnableSynchronizer {
         return true;
     }
 
-    private boolean tryAcquire(int acquires) {
+    /**
+     * 尝试获取前置锁
+     *
+     * @return true 成功 false 失败
+     */
+    @ReservedStackAccess
+    public boolean tryAcquire() {
         final Thread current = Thread.currentThread();
-        int c = getState();
-        if (c == 0 && !hasQueuedPredecessors() && compareAndSetState(0, acquires)) {
+        if (null == getExclusiveOwnerThread()) {
             setExclusiveOwnerThread(current);
             return true;
         }
-        return false;
+        return current == getExclusiveOwnerThread();
     }
 
+    /**
+     * 本地 JVM 锁已被抢占，head 后面的一个节点负责初始化 fifo 对列，
+     * 并进入睡眠状态，以等待锁施放事件器的唤醒
+     *
+     * @param waitTime 等待时间
+     * @return true:分布式锁已被释放，尝试抢占 false:等待超时
+     */
     public boolean joinTheTeam(long waitTime) {
         Node node = addWaiter(Node.EXCLUSIVE);
         try {
@@ -264,7 +250,11 @@ public class SyncQueue extends AbstractOwnableSynchronizer {
         return false;
     }
 
-
+    /**
+     * 判断对列是否初始化
+     *
+     * @return true:初始化 false:未初始化
+     */
     public final boolean hasQueuedPredecessors() {
         Node h, s;
         if ((h = head) != null) {
@@ -281,43 +271,37 @@ public class SyncQueue extends AbstractOwnableSynchronizer {
         return false;
     }
 
+    /**
+     * 唤醒 head 节点，使其能够尝试获取分布式锁
+     *
+     * @return true:唤醒成功
+     */
     public final boolean doSignal() {
         if (head != null)
             LockSupport.unpark(head.thread);
         return true;
     }
 
-
-    private final boolean release(int arg) {
-        if (tryRelease(arg)) {
-            Node h = head;
-            if (h != null && h.waitStatus != 0) {
-                setHead(h.next);
-                h.next = null;
-            }
-            return true;
-        }
-        return false;
-    }
-
-    protected final boolean tryRelease(int releases) {
-        int c = getState() - releases;
+    /**
+     * 释放 JVM 本地锁
+     */
+    @ReservedStackAccess
+    private final void release() {
         if (Thread.currentThread() != getExclusiveOwnerThread())
             throw new IllegalMonitorStateException();
-        boolean free = false;
-        if (c == 0) {
-            free = true;
-            setExclusiveOwnerThread(null);
+        setExclusiveOwnerThread(null);
+        Node h = head;
+        if (h != null && h.waitStatus != 0) {
+            setHead(h.next);
+            h.next = null;
         }
-        setState(c);
-        return free;
     }
 
     /**
-     * Creates and enqueues node for current thread and given mode.
+     * 为当前线程和给定模式创建节点并使其入队
      *
-     * @param mode Node.EXCLUSIVE for exclusive, Node.SHARED for shared
-     * @return the new node
+     * @param mode Node.EXCLUSIVE表示独占，Node.SHARED表示共享
+     * @return 新节点
      */
     private Node addWaiter(Node mode) {
         Node node = new Node(mode);
@@ -337,11 +321,10 @@ public class SyncQueue extends AbstractOwnableSynchronizer {
     }
 
     /**
-     * Sets head of queue to be node, thus dequeuing. Called only by
-     * acquire methods.  Also nulls out unused fields for sake of GC
-     * and to suppress unnecessary signals and traversals.
+     * 将队列的头设置为节点，从而出列。仅由获取方法调用。
+     * 为了GC和抑制不必要的信号和遍历，还清空了未使用的字段
      *
-     * @param node the node
+     * @param node 节点
      */
     private void setHead(Node node) {
         head = node;
@@ -350,9 +333,9 @@ public class SyncQueue extends AbstractOwnableSynchronizer {
     }
 
     /**
-     * Cancels an ongoing attempt to acquire.
+     * 取消正在进行的尝试获取节点
      *
-     * @param node the node
+     * @param node 节点
      */
     private void cancelAcquire(Node node) {
         // Ignore if node doesn't exist
@@ -401,13 +384,12 @@ public class SyncQueue extends AbstractOwnableSynchronizer {
     }
 
     /**
-     * Checks and updates status for a node that failed to acquire.
-     * Returns true if thread should block. This is the main signal
-     * control in all acquire loops.  Requires that pred == node.prev.
+     * 检查并更新前置节点的状态。若线程应该阻塞，则返回 true
+     * 硬指标：要求 pred == node.prev
      *
-     * @param pred node's predecessor holding status
-     * @param node the node
-     * @return {@code true} if thread should block
+     * @param pred 当前节点的前置节点
+     * @param node 当前节点
+     * @return true：线程需要阻塞休眠
      */
     private static boolean shouldParkAfterFailedAcquire(Node pred, Node node) {
         int ws = pred.waitStatus;
@@ -438,9 +420,9 @@ public class SyncQueue extends AbstractOwnableSynchronizer {
     }
 
     /**
-     * Wakes up node's successor, if one exists.
+     * 节点需要被取消掉，将节点的前后关联关系进行切换，如果有需要的话
      *
-     * @param node the node
+     * @param node 节点
      */
     private void unparkSuccessor(Node node) {
         /*
@@ -465,20 +447,19 @@ public class SyncQueue extends AbstractOwnableSynchronizer {
                 if (p.waitStatus <= 0)
                     s = p;
         }
-        if (s != null)
-            LockSupport.unpark(s.thread);
+        if (s != null && null != head) {
+            node.prev.compareAndSetNext(node, s);
+            s.prev = node.prev;
+        }
     }
 
-
     // VarHandle mechanics
-    private static final VarHandle STATE;
     private static final VarHandle HEAD;
     private static final VarHandle TAIL;
 
     static {
         try {
             MethodHandles.Lookup l = MethodHandles.lookup();
-            STATE = l.findVarHandle(SyncQueue.class, "state", int.class);
             HEAD = l.findVarHandle(SyncQueue.class, "head", Node.class);
             TAIL = l.findVarHandle(SyncQueue.class, "tail", Node.class);
         } catch (ReflectiveOperationException e) {
@@ -491,7 +472,7 @@ public class SyncQueue extends AbstractOwnableSynchronizer {
     }
 
     /**
-     * Initializes head and tail fields on first contention.
+     * 在第一次争用时初始化 head 和 tail
      */
     private final void initializeSyncQueue() {
         Node h;
@@ -500,7 +481,7 @@ public class SyncQueue extends AbstractOwnableSynchronizer {
     }
 
     /**
-     * CASes tail field.
+     * CAS tail
      */
     private final boolean compareAndSetTail(Node expect, Node update) {
         return TAIL.compareAndSet(this, expect, update);

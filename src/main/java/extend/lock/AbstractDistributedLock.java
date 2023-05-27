@@ -10,6 +10,8 @@ import java.util.concurrent.TimeUnit;
  */
 public abstract class AbstractDistributedLock {
 
+    protected   String lockNameFormat = "%s:{%s}";
+
     /**
      * 获取监听通道名称
      *
@@ -44,6 +46,14 @@ public abstract class AbstractDistributedLock {
      * @return true：释放锁成功 false：释放锁失败
      */
     abstract boolean ubLock(String key);
+
+    /**
+     * 组装锁名称
+     *
+     * @param keyword 关键字
+     * @return 锁名称
+     */
+    abstract String assembleLockName(String keyword);
 
 
 }
