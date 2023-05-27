@@ -24,18 +24,15 @@ import java.util.concurrent.TimeUnit;
 @RequestMapping("/lock/")
 public class LockController {
 
-    @Resource
-    private RedisTemplate<String, String> redisTemplate;
-
-    @Resource
-    private StringRedisTemplate stringRedisTemplate;
-
-    String string = "return redis.call('ZRANGE', KEYS[1], 1, 2);";
-
     /**
      * 监听释放锁主题
      */
     private static final String UN_LOCK_TOPIC = "UN_LOCK_TOPIC";
+    String string = "return redis.call('ZRANGE', KEYS[1], 1, 2);";
+    @Resource
+    private RedisTemplate<String, String> redisTemplate;
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
 
     /**
      * 创建一个发布订阅模式的订阅者，监听所有 channel，监听者方法的入参是锁的名称

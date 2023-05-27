@@ -10,7 +10,7 @@ import java.util.concurrent.TimeUnit;
  */
 public abstract class AbstractDistributedLock {
 
-    protected   String lockNameFormat = "%s:{%s}";
+    protected String lockNameFormat = "%s:{%s}";
 
     /**
      * 获取监听通道名称

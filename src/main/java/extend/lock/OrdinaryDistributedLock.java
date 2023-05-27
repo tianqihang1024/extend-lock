@@ -44,18 +44,15 @@ public class OrdinaryDistributedLock extends AbstractDistributedLock {
      * 普通分布式锁lua脚本-释放
      */
     private static final String ORDINARY_UNLOCK_SCRIPT = "";
-
-    @Resource
-    private RedisTemplate<String, String> redisTemplate;
-
     /**
      * key 锁名称，value 同步队列
      */
     private static final Map<String, SyncQueue> LOCK_MAP = new ConcurrentHashMap<>();
+    @Resource
+    private RedisTemplate<String, String> redisTemplate;
 
     /**
-     *
-     * @param key 锁名称
+     * @param key       锁名称
      * @param waitTime
      * @param leaseTime
      * @param unit
