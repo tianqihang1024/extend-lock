@@ -41,8 +41,23 @@ public class OrdinaryDistributedLock extends AbstractDistributedLock {
 
     /**
      * 普通分布式锁lua脚本-释放
+     * KEYS[1]: 锁名称
+     * ARGV[1]: 锁持续时间
+     * ARGV[2]: 线程标识
      */
-    private static final String ORDINARY_UNLOCK_SCRIPT = "";
+    private static final String ORDINARY_UNLOCK_SCRIPT = "if (redis.call('HGET', KEYS[1], ARGV[2]) > 1) then \n" +
+            "    redis.call('HDECRBY', KEYS[1], ARGV[2], 1); \n" +
+            "    redis.call('PEXPIRE', KEYS[1], ARGV[1]); \n" +
+            "    return nil; \n" +
+            "    end; \n" +
+            "if (redis.call('HGET', KEYS[1], ARGV[2]) == 1) then \n" +
+            "    redis.call('HDECRBY', KEYS[1], ARGV[2], 1); \n" +
+            "    redis.call('DEL', KEYS[1]); \n" +
+            "    redis.call('PUBLISH', 'UN_LOCK_TOPIC', KEYS[1]); \n" +
+            "    return nil; \n" +
+            "    end; \n" +
+            "return redis.call('PTTL', KEYS[1]);";
+
     /**
      * redis 操作对象
      */
@@ -63,7 +78,7 @@ public class OrdinaryDistributedLock extends AbstractDistributedLock {
 
         // 格式化参数
         leaseTime = unit.toNanos(leaseTime);
-        long threadId = Thread.currentThread().getId();
+        long threadFlag = AbstractDistributedLock.THREAD_FLAG + Thread.currentThread().getId();
 
         // 组装锁名称
         String lockName = assembleLockName(key);
@@ -77,7 +92,7 @@ public class OrdinaryDistributedLock extends AbstractDistributedLock {
         // 获取JVM本地锁成功 || 尝试获取结果
         while (flag || syncQueue.acquire(waitTime)) {
             // 尝试设置分布式锁
-            Long ttl = tryAcquire(key, leaseTime, threadId);
+            Long ttl = tryAcquireDistributedLock(key, leaseTime, threadFlag);
             // 设置分布式锁成功
             if (ttl == null)
                 // 抢占成功返回 true
@@ -104,12 +119,25 @@ public class OrdinaryDistributedLock extends AbstractDistributedLock {
     /**
      * 释放锁
      *
-     * @param key 锁名称
+     * @param key       锁名称
+     * @param leaseTime 锁持续时间
+     * @param unit      时间单位
      * @return true：释放锁成功 false：释放锁失败
      */
     @Override
-    boolean ubLock(String key) {
-        return false;
+    boolean ubLock(String key, long leaseTime, TimeUnit unit) {
+
+        // 格式化参数
+        leaseTime = unit.toNanos(leaseTime);
+        long threadId = Thread.currentThread().getId();
+
+        // 组装锁名称
+        String lockName = assembleLockName(key);
+
+        // 执行释放锁脚本
+        Long flag = unDistributedLock(lockName, leaseTime, threadId);
+
+        return flag == null;
     }
 
     /**
@@ -120,23 +148,41 @@ public class OrdinaryDistributedLock extends AbstractDistributedLock {
      */
     @Override
     String assembleLockName(String keyword) {
-        return String.format(super.lockNameFormat, "ordinary", keyword);
+        return String.format(AbstractDistributedLock.LOCK_NAME_FORMAT, "ordinary", keyword);
     }
 
     /**
-     * 尝试获取锁
+     * 尝试获取分布式锁
      *
      * @param key      锁名称
      * @param current  持续时间
      * @param threadId 线程标识
      * @return null:成功 !null:失败
      */
-    private Long tryAcquire(String key, long current, long threadId) {
+    private Long tryAcquireDistributedLock(String key, long current, long threadId) {
         DefaultRedisScript<Long> script = new DefaultRedisScript<>(OrdinaryDistributedLock.ORDINARY_LOCK_SCRIPT);
         try {
             return redisTemplate.execute(script, Collections.singletonList(key), current, threadId);
         } catch (Exception e) {
-            log.error("tryAcquire fail key:{}, current:{}, threadId:{}", key, current, threadId);
+            log.error("tryAcquireDistributedLock fail key:{}, current:{}, threadId:{}", key, current, threadId);
+        }
+        return 0L;
+    }
+
+    /**
+     * 释放分布式锁
+     *
+     * @param key      锁名称
+     * @param current  持续时间
+     * @param threadId 线程标识
+     * @return null:成功 !null:失败
+     */
+    private Long unDistributedLock(String key, long current, long threadId) {
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>(OrdinaryDistributedLock.ORDINARY_UNLOCK_SCRIPT);
+        try {
+            return redisTemplate.execute(script, Collections.singletonList(key), current, threadId);
+        } catch (Exception e) {
+            log.error("unDistributedLock fail key:{}, current:{}, threadId:{}", key, current, threadId);
         }
         return 0L;
     }

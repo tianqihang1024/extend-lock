@@ -12,8 +12,15 @@ public abstract class AbstractDistributedLock {
 
     /**
      * 锁名称基本格式
+     * 锁类型:{关键字}
      */
-    protected String lockNameFormat = "%s:{%s}";
+    protected static final String LOCK_NAME_FORMAT = "%s:{%s}";
+
+    /**
+     * 线程标识，与线程ID拼接保证多服务器下的抢占线程唯一，
+     * 避免多服务器下线程名称一致导致的错误重入（系统启动时的时间戳能够满足随机需求，后期可以考虑使用雪花算法，那样更安全）
+     */
+    protected static final Long THREAD_FLAG = System.currentTimeMillis();
 
     /**
      * 获取监听通道名称
@@ -49,9 +56,11 @@ public abstract class AbstractDistributedLock {
      * 释放锁
      *
      * @param key 锁名称
+     * @param leaseTime 锁持续时间
+     * @param unit      时间单位
      * @return true：释放锁成功 false：释放锁失败
      */
-    abstract boolean ubLock(String key);
+    abstract boolean ubLock(String key, long leaseTime, TimeUnit unit);
 
     /**
      * 组装锁名称
