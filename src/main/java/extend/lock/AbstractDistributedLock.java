@@ -49,7 +49,7 @@ public abstract class AbstractDistributedLock {
      * @param unit      时间单位
      * @return true：释放锁成功 false：释放锁失败
      */
-    public abstract boolean ubLock(String key, long leaseTime, TimeUnit unit);
+    public abstract boolean unLock(String key, long leaseTime, TimeUnit unit);
 
     /**
      * 组装锁名称

@@ -125,7 +125,7 @@ public class OrdinaryDistributedLock extends AbstractDistributedLock {
      * @return true：释放锁成功 false：释放锁失败
      */
     @Override
-    public boolean ubLock(String key, long leaseTime, TimeUnit unit) {
+    public boolean unLock(String key, long leaseTime, TimeUnit unit) {
 
         // 格式化参数
         leaseTime = unit.toNanos(leaseTime);
@@ -134,7 +134,13 @@ public class OrdinaryDistributedLock extends AbstractDistributedLock {
         // 组装锁名称
         String lockName = assembleLockName(key);
 
-        // 执行释放锁脚本
+        // 获取分布式锁对应的JVM本地锁对象
+        SyncQueue syncQueue = PublishSubscribe.getSyncQueueByLockName(lockName);
+
+        // 释放JVM锁
+        syncQueue.release();
+
+        // 执行释放分布式锁脚本
         Long flag = unDistributedLock(lockName, leaseTime, threadId);
 
         return flag == null;

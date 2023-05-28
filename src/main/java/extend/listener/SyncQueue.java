@@ -197,15 +197,18 @@ public class SyncQueue extends AbstractOwnableSynchronizer {
      * 释放 JVM 本地锁
      */
     @ReservedStackAccess
-    private final void release() {
+    public final void release() {
         if (Thread.currentThread() != getExclusiveOwnerThread())
             throw new IllegalMonitorStateException();
-        setExclusiveOwnerThread(null);
         Node h = head;
-        if (h != null && h.waitStatus != 0) {
+        Node s = tailIteration(h);
+        if (s != null) {
             setHead(h.next);
-            h.next = null;
+            setExclusiveOwnerThread(s.thread);
+        } else {
+            setExclusiveOwnerThread(null);
         }
+        h.next = null;
     }
 
     /**
@@ -315,6 +318,21 @@ public class SyncQueue extends AbstractOwnableSynchronizer {
          * traverse backwards from tail to find the actual
          * non-cancelled successor.
          */
+        Node s = tailIteration(node);
+
+        if (s != null && null != head) {
+            node.prev.compareAndSetNext(node, s);
+            s.prev = node.prev;
+        }
+    }
+
+    /**
+     * 获取节点下一个有效节点
+     *
+     * @param node 节点
+     * @return 有效节点
+     */
+    private Node tailIteration(Node node) {
         Node s = node.next;
         if (s == null || s.waitStatus > 0) {
             s = null;
@@ -322,10 +340,7 @@ public class SyncQueue extends AbstractOwnableSynchronizer {
                 if (p.waitStatus <= 0)
                     s = p;
         }
-        if (s != null && null != head) {
-            node.prev.compareAndSetNext(node, s);
-            s.prev = node.prev;
-        }
+        return s;
     }
 
     /**

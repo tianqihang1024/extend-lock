@@ -71,7 +71,7 @@ public class DistributedLockAspect {
             log.error("DistributedLockAspect.around tryLock fail keyword:{} distributedLock:{}", keyword, distributedLock, e);
         } finally {
             if (flag)
-                abstractDistributedLock.ubLock(keyword, distributedLock.leaseTime(), distributedLock.timeUnit());
+                abstractDistributedLock.unLock(keyword, distributedLock.leaseTime(), distributedLock.timeUnit());
         }
         return null;
     }
