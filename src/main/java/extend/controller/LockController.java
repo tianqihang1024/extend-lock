@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * @author 田奇杭
- * @Description
+ * @Description 分布式锁测试控制层
  * @Date 2023/5/14 1:35
  */
 @Slf4j
@@ -33,6 +33,8 @@ public class LockController {
     private RedisTemplate<String, String> redisTemplate;
     @Resource
     private StringRedisTemplate stringRedisTemplate;
+    @Resource
+    private AspectService aspectService;
 
     /**
      * 创建一个发布订阅模式的订阅者，监听所有 channel，监听者方法的入参是锁的名称
@@ -41,6 +43,7 @@ public class LockController {
     @RequestMapping("lock")
     public void lock() {
         stringRedisTemplate.convertAndSend(UN_LOCK_TOPIC, "释放锁");
+        aspectService.test("key");
     }
 
     @RequestMapping(value = "test")
