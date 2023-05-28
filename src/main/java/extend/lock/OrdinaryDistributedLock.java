@@ -160,7 +160,7 @@ public class OrdinaryDistributedLock extends AbstractDistributedLock {
      * @return null:成功 !null:失败
      */
     private Long tryAcquireDistributedLock(String key, long current, long threadId) {
-        DefaultRedisScript<Long> script = new DefaultRedisScript<>(OrdinaryDistributedLock.ORDINARY_LOCK_SCRIPT);
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>(OrdinaryDistributedLock.ORDINARY_LOCK_SCRIPT, Long.class);
         try {
             return redisTemplate.execute(script, Collections.singletonList(key), current, threadId);
         } catch (Exception e) {
@@ -178,7 +178,7 @@ public class OrdinaryDistributedLock extends AbstractDistributedLock {
      * @return null:成功 !null:失败
      */
     private Long unDistributedLock(String key, long current, long threadId) {
-        DefaultRedisScript<Long> script = new DefaultRedisScript<>(OrdinaryDistributedLock.ORDINARY_UNLOCK_SCRIPT);
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>(OrdinaryDistributedLock.ORDINARY_UNLOCK_SCRIPT, Long.class);
         try {
             return redisTemplate.execute(script, Collections.singletonList(key), current, threadId);
         } catch (Exception e) {
