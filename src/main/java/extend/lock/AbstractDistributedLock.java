@@ -31,7 +31,7 @@ public abstract class AbstractDistributedLock {
      * @param unit      时间单位
      * @return true:抢占成功 false:抢占失败
      */
-    abstract boolean tryLock(String key, long waitTime, long leaseTime, TimeUnit unit);
+    public abstract boolean tryLock(String key, long waitTime, long leaseTime, TimeUnit unit);
 
     /**
      * 获取锁
@@ -39,7 +39,7 @@ public abstract class AbstractDistributedLock {
      * @param key 锁名称
      * @return true：抢占成功 false：抢占失败
      */
-    abstract boolean lock(String key);
+    public abstract boolean lock(String key);
 
     /**
      * 释放锁
@@ -49,7 +49,7 @@ public abstract class AbstractDistributedLock {
      * @param unit      时间单位
      * @return true：释放锁成功 false：释放锁失败
      */
-    abstract boolean ubLock(String key, long leaseTime, TimeUnit unit);
+    public abstract boolean ubLock(String key, long leaseTime, TimeUnit unit);
 
     /**
      * 组装锁名称
@@ -57,7 +57,7 @@ public abstract class AbstractDistributedLock {
      * @param keyword 关键字
      * @return 锁名称
      */
-    abstract String assembleLockName(String keyword);
+    public abstract String assembleLockName(String keyword);
 
 
 }

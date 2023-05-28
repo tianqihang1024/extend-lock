@@ -74,7 +74,7 @@ public class OrdinaryDistributedLock extends AbstractDistributedLock {
      * @return true:抢占成功 false:抢占失败
      */
     @Override
-    boolean tryLock(String key, long waitTime, long leaseTime, TimeUnit unit) {
+    public boolean tryLock(String key, long waitTime, long leaseTime, TimeUnit unit) {
 
         // 格式化参数
         leaseTime = unit.toNanos(leaseTime);
@@ -112,7 +112,7 @@ public class OrdinaryDistributedLock extends AbstractDistributedLock {
      * @return true：抢占成功 false：抢占失败
      */
     @Override
-    boolean lock(String key) {
+    public boolean lock(String key) {
         return false;
     }
 
@@ -125,7 +125,7 @@ public class OrdinaryDistributedLock extends AbstractDistributedLock {
      * @return true：释放锁成功 false：释放锁失败
      */
     @Override
-    boolean ubLock(String key, long leaseTime, TimeUnit unit) {
+    public boolean ubLock(String key, long leaseTime, TimeUnit unit) {
 
         // 格式化参数
         leaseTime = unit.toNanos(leaseTime);
@@ -147,7 +147,7 @@ public class OrdinaryDistributedLock extends AbstractDistributedLock {
      * @return 锁名称
      */
     @Override
-    String assembleLockName(String keyword) {
+    public String assembleLockName(String keyword) {
         return String.format(AbstractDistributedLock.LOCK_NAME_FORMAT, "ordinary", keyword);
     }
 
