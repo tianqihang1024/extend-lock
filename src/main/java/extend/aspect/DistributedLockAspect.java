@@ -1,6 +1,5 @@
 package extend.aspect;
 
-import com.alibaba.fastjson.JSON;
 import extend.annotation.DistributedLock;
 import extend.annotation.DistributedLockKey;
 import extend.enums.DistributedLockTypeEnum;
@@ -123,7 +122,7 @@ public class DistributedLockAspect {
             // 查看每个参数的第一个注解是否为 DistributedLockKey
             if (annotations[i][0] instanceof DistributedLockKey)
                 // 返回关键字
-                return JSON.toJSONString(params[i]);
+                return String.valueOf(params[i]);
         }
         return null;
     }

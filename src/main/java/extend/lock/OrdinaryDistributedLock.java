@@ -1,6 +1,5 @@
 package extend.lock;
 
-
 import extend.listener.PublishSubscribe;
 import extend.listener.SyncQueue;
 import lombok.extern.slf4j.Slf4j;
@@ -29,14 +28,14 @@ public class OrdinaryDistributedLock extends AbstractDistributedLock {
      */
     private static final String ORDINARY_LOCK_SCRIPT = "if (redis.call('EXISTS', KEYS[1]) == 0) then \n" +
             "    redis.call('HINCRBY', KEYS[1], ARGV[2], 1); \n" +
-            "    redis.call('PEXPIRE', KEYS[1], ARGV[1]); \n" +
+            "    redis.call('PEXPIRE', KEYS[1], tonumber(ARGV[1])); \n" +
             "    return nil; \n" +
-            "    end; \n" +
+            "end; \n" +
             "if (redis.call('HEXISTS', KEYS[1], ARGV[2]) == 1) then\n" +
             "    redis.call('HINCRBY', KEYS[1], ARGV[2], 1); \n" +
-            "    redis.call('PEXPIRE', KEYS[1], ARGV[1]); \n" +
+            "    redis.call('PEXPIRE', KEYS[1], tonumber(ARGV[1])); \n" +
             "    return nil; \n" +
-            "    end; \n" +
+            "end; \n" +
             "return redis.call('PTTL', KEYS[1]);";
 
     /**
@@ -45,18 +44,19 @@ public class OrdinaryDistributedLock extends AbstractDistributedLock {
      * ARGV[1]: 锁持续时间
      * ARGV[2]: 线程标识
      */
-    private static final String ORDINARY_UNLOCK_SCRIPT = "if (redis.call('HGET', KEYS[1], ARGV[2]) > 1) then \n" +
-            "    redis.call('HDECRBY', KEYS[1], ARGV[2], 1); \n" +
-            "    redis.call('PEXPIRE', KEYS[1], ARGV[1]); \n" +
-            "    return nil; \n" +
-            "    end; \n" +
-            "if (redis.call('HGET', KEYS[1], ARGV[2]) == 1) then \n" +
-            "    redis.call('HDECRBY', KEYS[1], ARGV[2], 1); \n" +
+    private static final String ORDINARY_UNLOCK_SCRIPT = "if (redis.call('HEXISTS', KEYS[1], ARGV[2]) == 0) then \n" +
+            "    return nil;\n" +
+            "end;\n" +
+            "if (tonumber(redis.call('HGET', KEYS[1], ARGV[2])) > 1) then \n" +
+            "    redis.call('HINCRBY', KEYS[1], ARGV[2], -1); \n" +
+            "    redis.call('PEXPIRE', KEYS[1], ARGV[1]);\n" +
+            "    return 0;\n" +
+            "else \n" +
             "    redis.call('DEL', KEYS[1]); \n" +
             "    redis.call('PUBLISH', 'UN_LOCK_TOPIC', KEYS[1]); \n" +
-            "    return nil; \n" +
-            "    end; \n" +
-            "return redis.call('PTTL', KEYS[1]);";
+            "    return 1;\n" +
+            "end; \n" +
+            "return nil;";
 
     /**
      * redis 操作对象
@@ -75,9 +75,7 @@ public class OrdinaryDistributedLock extends AbstractDistributedLock {
      */
     @Override
     public boolean tryLock(String key, long waitTime, long leaseTime, TimeUnit unit) {
-
         // 格式化参数
-        leaseTime = unit.toNanos(leaseTime);
         long threadFlag = AbstractDistributedLock.THREAD_FLAG + Thread.currentThread().getId();
 
         // 组装锁名称
@@ -92,7 +90,7 @@ public class OrdinaryDistributedLock extends AbstractDistributedLock {
         // 获取JVM本地锁成功 || 尝试获取结果
         while (flag || syncQueue.acquire(waitTime)) {
             // 尝试设置分布式锁
-            Long ttl = tryAcquireDistributedLock(key, leaseTime, threadFlag);
+            Long ttl = tryAcquireDistributedLock(lockName, leaseTime, threadFlag);
             // 设置分布式锁成功
             if (ttl == null)
                 // 抢占成功返回 true
@@ -129,7 +127,7 @@ public class OrdinaryDistributedLock extends AbstractDistributedLock {
 
         // 格式化参数
         leaseTime = unit.toNanos(leaseTime);
-        long threadId = Thread.currentThread().getId();
+        long threadId = AbstractDistributedLock.THREAD_FLAG + Thread.currentThread().getId();
 
         // 组装锁名称
         String lockName = assembleLockName(key);
@@ -143,7 +141,7 @@ public class OrdinaryDistributedLock extends AbstractDistributedLock {
         // 执行释放分布式锁脚本
         Long flag = unDistributedLock(lockName, leaseTime, threadId);
 
-        return flag == null;
+        return flag != null;
     }
 
     /**
@@ -168,9 +166,9 @@ public class OrdinaryDistributedLock extends AbstractDistributedLock {
     private Long tryAcquireDistributedLock(String key, long current, long threadId) {
         DefaultRedisScript<Long> script = new DefaultRedisScript<>(OrdinaryDistributedLock.ORDINARY_LOCK_SCRIPT, Long.class);
         try {
-            return redisTemplate.execute(script, Collections.singletonList(key), current, threadId);
+            return redisTemplate.execute(script, Collections.singletonList(key), String.valueOf(current), String.valueOf(threadId));
         } catch (Exception e) {
-            log.error("tryAcquireDistributedLock fail key:{}, current:{}, threadId:{}", key, current, threadId);
+            log.error("tryAcquireDistributedLock fail key:{}, current:{}, threadId:{}, e:", key, current, threadId, e);
         }
         return 0L;
     }
@@ -181,16 +179,16 @@ public class OrdinaryDistributedLock extends AbstractDistributedLock {
      * @param key      锁名称
      * @param current  持续时间
      * @param threadId 线程标识
-     * @return null:成功 !null:失败
+     * @return null:失败 !null:成功
      */
     private Long unDistributedLock(String key, long current, long threadId) {
         DefaultRedisScript<Long> script = new DefaultRedisScript<>(OrdinaryDistributedLock.ORDINARY_UNLOCK_SCRIPT, Long.class);
         try {
-            return redisTemplate.execute(script, Collections.singletonList(key), current, threadId);
+            return redisTemplate.execute(script, Collections.singletonList(key), String.valueOf(current), String.valueOf(threadId));
         } catch (Exception e) {
-            log.error("unDistributedLock fail key:{}, current:{}, threadId:{}", key, current, threadId);
+            log.error("unDistributedLock fail key:{}, current:{}, threadId:{}, e:", key, current, threadId, e);
         }
-        return 0L;
+        return null;
     }
 
 }

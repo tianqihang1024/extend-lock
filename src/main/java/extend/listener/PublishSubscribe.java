@@ -1,5 +1,6 @@
 package extend.listener;
 
+import com.alibaba.fastjson.JSON;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.connection.Message;
@@ -39,6 +40,7 @@ public class PublishSubscribe implements MessageListener {
         String unLockName = message.toString();
         // 尝试获取被释放锁的本地同步队列
         SyncQueue syncQueue = SYNC_QUEUE_MAP.get(unLockName);
+        log.info("PublishSubscribe.syncQueue syncQueue:{}", JSON.toJSONString(syncQueue));
         // 本地同步队列可能为空，因为可能压根就没有针对这个临界资源的操作
         if (syncQueue != null) {
             // 唤醒头部节点使其能够苏醒，参与到临界资源的抢占中

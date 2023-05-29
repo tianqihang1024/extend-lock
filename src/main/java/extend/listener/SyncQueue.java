@@ -4,6 +4,7 @@ import jdk.internal.vm.annotation.ReservedStackAccess;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.AbstractOwnableSynchronizer;
 import java.util.concurrent.locks.LockSupport;
 
@@ -103,9 +104,10 @@ public class SyncQueue extends AbstractOwnableSynchronizer {
      * @return true:被唤醒 false:正常苏醒
      */
     private boolean waitingForWakeup(long waitTime, Node node) {
-        long a = waitTime - System.currentTimeMillis();
         final Thread current = Thread.currentThread();
-        LockSupport.parkNanos(current, a);
+        long l = TimeUnit.MILLISECONDS.toNanos(waitTime);
+        waitTime = System.currentTimeMillis() + waitTime;
+        LockSupport.parkNanos(current, l);
         // 等待时间小于当前时间
         if (waitTime < System.currentTimeMillis()) {
             // 持有锁
@@ -132,7 +134,7 @@ public class SyncQueue extends AbstractOwnableSynchronizer {
      * @return true 成功 false 失败
      */
     @ReservedStackAccess
-    public boolean tryAcquire() {
+    public synchronized boolean tryAcquire() {
         final Thread current = Thread.currentThread();
         if (null == getExclusiveOwnerThread()) {
             setExclusiveOwnerThread(current);
@@ -189,7 +191,7 @@ public class SyncQueue extends AbstractOwnableSynchronizer {
      */
     public final boolean doSignal() {
         if (head != null)
-            LockSupport.unpark(head.thread);
+            LockSupport.unpark(getExclusiveOwnerThread());
         return true;
     }
 
@@ -200,11 +202,15 @@ public class SyncQueue extends AbstractOwnableSynchronizer {
     public final void release() {
         if (Thread.currentThread() != getExclusiveOwnerThread())
             throw new IllegalMonitorStateException();
+        // 队列尚未初始化
+        if (!hasQueuedPredecessors()) {
+            setExclusiveOwnerThread(null);
+            return;
+        }
         Node h = head;
         Node s = tailIteration(h);
         if (s != null) {
             setHead(h.next);
-            setExclusiveOwnerThread(s.thread);
         } else {
             setExclusiveOwnerThread(null);
         }
@@ -242,6 +248,7 @@ public class SyncQueue extends AbstractOwnableSynchronizer {
      */
     private void setHead(Node node) {
         head = node;
+        setExclusiveOwnerThread(node.thread);
         node.thread = null;
         node.prev = null;
     }

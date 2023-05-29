@@ -11,7 +11,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.annotation.Resource;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -41,9 +43,18 @@ public class LockController {
      * 所有线程
      */
     @RequestMapping("lock")
-    public void lock() {
-        stringRedisTemplate.convertAndSend(UN_LOCK_TOPIC, "释放锁");
-        aspectService.test("key");
+    public void lock(String key) {
+        List<Thread> threadList = new ArrayList<>(10);
+        for (int i = 0; i < 5; i++) {
+            Thread thread = new Thread(() -> aspectService.test(key));
+            thread.setName("thread:" + i);
+            threadList.add(thread);
+        }
+        log.info("开始抢占线程");
+        for (Thread thread : threadList) {
+            thread.start();
+        }
+        log.info("5次睡眠结束");
     }
 
     @RequestMapping(value = "test")
