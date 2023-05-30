@@ -208,9 +208,9 @@ public class SyncQueue extends AbstractOwnableSynchronizer {
             return;
         }
         Node h = head;
-        Node s = tailIteration(h);
+        Node s = h.next != null ? h.next : tailIteration(h);
         if (s != null) {
-            setHead(h.next);
+            setHead(s);
         } else {
             setExclusiveOwnerThread(null);
         }
@@ -254,14 +254,21 @@ public class SyncQueue extends AbstractOwnableSynchronizer {
     }
 
     /**
-     * 取消正在进行的尝试获取节点
+     * 取消正在进行的尝试获取节点。head 节点是不能调用这个方法的，但是大量 node 同一时间失效包括 head 节点时，
+     * 在取消的过程中 node 的角色会发生改变，导致正在取消的 node 身份变成 head，
+     * 因此方法加上 synchronized 强制每次都读取最新的 head 身份，当身份是 head 时走特殊流程，这样写有点别扭，但是最简单干脆
      *
      * @param node 节点
      */
-    private void cancelAcquire(Node node) {
+    private synchronized void cancelAcquire(Node node) {
         // Ignore if node doesn't exist
         if (node == null)
             return;
+        // node 身份发生变化时，走特殊流程
+        if (node == head || node.thread == getExclusiveOwnerThread()) {
+            release();
+            return;
+        }
 
         node.thread = null;
 
